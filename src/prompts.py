@@ -14,7 +14,8 @@ DEFAULT_TOPICS = [
     "photography",
     "Australia",
     "personal growth",
-    "observations about life"
+    "observations about life",
+    "Observability and SRE (focusing on New Relic and Splunk)"
 ]
 
 def get_random_topic(topics: List[str] = None) -> str:

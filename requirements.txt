@@ -1,0 +1,4 @@
+google-genai>=0.1.1
+pytumblr>=0.0.7
+python-dotenv>=1.0.1
+pytest>=8.0.0

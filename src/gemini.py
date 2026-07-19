@@ -12,7 +12,7 @@ logger = setup_logger("gemini_client")
 class GeminiClient:
     """Client for generating content using the Google Gemini REST API directly."""
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-3.5-flash"):
         """
         Initializes the Gemini Client.
         If api_key is None, it defaults to the GEMINI_API_KEY environment variable.

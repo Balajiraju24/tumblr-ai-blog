@@ -105,7 +105,7 @@ def main():
     # Configuration values
     word_count_min = int(os.environ.get("WORD_COUNT_MIN", "800"))
     word_count_max = int(os.environ.get("WORD_COUNT_MAX", "1200"))
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
     # 2. Determine Topic
     # Check if a specific topic was requested manually

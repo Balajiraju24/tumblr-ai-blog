@@ -57,7 +57,7 @@ jobs:
           # Configs
           WORD_COUNT_MIN: '800'
           WORD_COUNT_MAX: '1200'
-          GEMINI_MODEL: 'gemini-2.5-flash'
+          GEMINI_MODEL: 'gemini-3.5-flash'
         run: |
           python -m src.main
 

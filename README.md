@@ -30,7 +30,7 @@ graph TD
 ## Features
 
 - **Automated Daily Publishing**: Triggered automatically using GitHub Actions cron scheduling.
-- **Gemini 2.5 Flash**: Leverages the latest Google Gen AI API for human-like, reflective writing.
+- **Gemini 3.5 Flash**: Leverages the latest Google Gen AI API for human-like, reflective writing.
 - **Clean Markdown Formatting**: Generated posts support markdown headers, lists, and formatting.
 - **Robust Parsing & Validation**: Validates the output format and word count; retries automatically up to 3 times on parsing or validation failures.
 - **Duplicate Post Prevention**: Computes SHA-256 hashes of generated text and checks them against `published_hashes.txt` before uploading.
@@ -83,7 +83,7 @@ graph TD
    DRY_RUN=false
    WORD_COUNT_MIN=800
    WORD_COUNT_MAX=1200
-   GEMINI_MODEL=gemini-2.5-flash
+   GEMINI_MODEL=gemini-3.5-flash
    ```
 
 5. **Run the application locally:**

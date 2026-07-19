@@ -46,7 +46,7 @@ class TumblrClient:
             logger.error(f"Failed to initialize pytumblr client: {e}")
             raise
 
-    def publish_draft(
+    def publish_post(
         self,
         title: str,
         body: str,
@@ -54,7 +54,7 @@ class TumblrClient:
         max_retries: int = 3
     ) -> Dict[str, Any]:
         """
-        Publishes a markdown draft post to Tumblr with retries.
+        Publishes a markdown post to Tumblr with retries.
         """
         logger.info("Tumblr upload started")
         
@@ -65,10 +65,10 @@ class TumblrClient:
             
             try:
                 # Post to Tumblr API
-                # By default, state="draft" and format="markdown"
+                # By default, state="published" and format="markdown"
                 response = self.client.create_text(
                     self.blog_name,
-                    state="draft",
+                    state="published",
                     format="markdown",
                     title=title,
                     body=body,
@@ -79,7 +79,7 @@ class TumblrClient:
                 # pytumblr usually returns a dict with details like {'id': 12345} or throws an error
                 if response and isinstance(response, dict) and "id" in response:
                     logger.info(f"Tumblr upload completed successfully. Post ID: {response['id']}")
-                    logger.info(f"Publish status: DRAFT published on blog '{self.blog_name}'")
+                    logger.info(f"Publish status: PUBLISHED on blog '{self.blog_name}'")
                     return response
                 else:
                     raise RuntimeError(f"Unexpected response format from Tumblr: {response}")

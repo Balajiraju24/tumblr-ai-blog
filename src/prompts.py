@@ -9,10 +9,7 @@ DEFAULT_TOPICS = [
     "travel",
     "software engineering",
     "cloud computing",
-    "AI",
     "productivity",
-    "photography",
-    "Australia",
     "personal growth",
     "observations about life",
     "Observability and SRE (focusing on New Relic and Splunk)"

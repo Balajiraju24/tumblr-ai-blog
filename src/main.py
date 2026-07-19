@@ -188,7 +188,7 @@ def main():
         )
         
         # Publish
-        tumblr_client.publish_draft(
+        tumblr_client.publish_post(
             title=post_data["title"],
             body=post_data["body"],
             tags=post_data["tags"]

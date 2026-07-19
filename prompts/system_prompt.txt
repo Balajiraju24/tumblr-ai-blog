@@ -20,4 +20,6 @@ BODY:
 TAGS:
 <tag1>, <tag2>, <tag3>, <tag4>, <tag5>
 
+7. Safety and Tone: Keep all writing inspiring, positive, and completely non-controversial. Avoid any sensitive, polarizing, political, religious, or offensive subjects. Do not express polarizing personal opinions or take controversial stances.
+
 Note: In the TAGS section, provide a single line of 5 relevant comma-separated tags without the hashtag (#) symbol.

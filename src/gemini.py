@@ -1,5 +1,6 @@
 import time
 import os
+import requests
 from typing import Dict, Any
 from google import genai
 from google.genai import types
@@ -12,9 +13,9 @@ from src.parser import parse_post, ParseError
 logger = setup_logger("gemini_client")
 
 class GeminiClient:
-    """Client for generating content using the official Google GenAI SDK."""
+    """Client for generating content using Google Gemini SDK with ChatGPT fallback support."""
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-2.0-flash"):
         """
         Initializes the Gemini Client using the official google-genai SDK.
         If api_key is None, it defaults to the GEMINI_API_KEY environment variable.
@@ -27,6 +28,64 @@ class GeminiClient:
 
         self.client = genai.Client(api_key=self.api_key)
 
+    def _generate_with_openai(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        topic: str,
+        word_count_min: int,
+        word_count_max: int
+    ) -> Dict[str, Any]:
+        """Fallback method to generate blog posts using OpenAI ChatGPT models (gpt-4o-mini, gpt-4o)."""
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            raise RuntimeError("OPENAI_API_KEY environment variable is not set.")
+
+        openai_models = ["gpt-4o-mini", "gpt-4o"]
+        last_openai_err = None
+
+        for openai_model in openai_models:
+            logger.info(f"Attempting fallback generation with ChatGPT model: '{openai_model}'")
+            try:
+                url = "https://api.openai.com/v1/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {openai_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": openai_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "temperature": 0.7
+                }
+                response = requests.post(url, json=payload, headers=headers, timeout=60)
+                response.raise_for_status()
+                
+                data = response.json()
+                choices = data.get("choices", [])
+                if not choices:
+                    raise ParseError("OpenAI response did not contain choices.")
+                    
+                content = choices[0].get("message", {}).get("content", "")
+                if not content.strip():
+                    raise ParseError("OpenAI returned an empty message response.")
+
+                post_data = parse_post(
+                    content,
+                    word_count_min=word_count_min,
+                    word_count_max=word_count_max
+                )
+                post_data["topic"] = topic
+                logger.info(f"AI generation completed successfully using ChatGPT model [{openai_model}].")
+                return post_data
+            except Exception as e:
+                logger.warning(f"ChatGPT model [{openai_model}] failed: {e}")
+                last_openai_err = e
+
+        raise RuntimeError(f"Failed to generate post using ChatGPT models ({openai_models}). Last error: {last_openai_err}")
+
     def generate_post(
         self, 
         topic: str, 
@@ -36,7 +95,7 @@ class GeminiClient:
     ) -> Dict[str, Any]:
         """
         Generates and parses a blog post on a given topic using the official GenAI SDK.
-        Includes automatic model fallback (gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash).
+        Includes automatic model fallback across Gemini models and ChatGPT models (if OPENAI_API_KEY is set).
         """
         logger.info(f"AI generation started for topic: '{topic}'")
         
@@ -122,6 +181,16 @@ class GeminiClient:
                         time.sleep(3)
 
             logger.warning(f"Model [{current_model}] unavailable. Trying fallback model if available...")
+
+        # If all Gemini models fail, attempt ChatGPT fallback if OPENAI_API_KEY is available
+        if os.environ.get("OPENAI_API_KEY"):
+            logger.info("Gemini models unavailable/exhausted. Attempting fallback to ChatGPT models...")
+            try:
+                return self._generate_with_openai(
+                    system_prompt, user_prompt, topic, word_count_min, word_count_max
+                )
+            except Exception as openai_err:
+                logger.error(f"ChatGPT model fallback failed: {openai_err}")
 
         raise RuntimeError(
             f"Daily free API quota exhausted across all available Gemini models for today. "

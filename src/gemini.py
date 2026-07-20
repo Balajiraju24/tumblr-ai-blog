@@ -12,7 +12,7 @@ logger = setup_logger("gemini_client")
 class GeminiClient:
     """Client for generating content using the Google Gemini REST API directly."""
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-2.0-flash"):
         """
         Initializes the Gemini Client.
         If api_key is None, it defaults to the GEMINI_API_KEY environment variable.
@@ -35,8 +35,8 @@ class GeminiClient:
     ) -> Dict[str, Any]:
         """
         Generates and parses a blog post on a given topic.
-        Includes automatic model fallback (e.g. gemini-2.5-flash -> gemini-1.5-flash) if 
-        a model hits rate limits (429) or high demand (503).
+        Includes automatic model fallback (e.g. gemini-2.0-flash -> gemini-2.0-flash-lite) if 
+        a model hits rate limits (429), high demand (503), or deprecation (404).
         """
         logger.info(f"AI generation started for topic: '{topic}'")
         
@@ -75,7 +75,7 @@ class GeminiClient:
         headers = {"Content-Type": "application/json"}
 
         # Define candidate models in priority order
-        fallback_chain = ["gemini-2.5-flash", "gemini-1.5-flash"]
+        fallback_chain = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b"]
         models_to_try = [self.model_name] + [m for m in fallback_chain if m != self.model_name]
 
         last_error = None

@@ -2,8 +2,8 @@ name: Daily Tumblr AI Auto Publisher
 
 on:
   schedule:
-    # Run once daily at 9:00 AM UTC
-    - cron: '0 9 * * *'
+    # Run once daily at 9:30 PM AEST (11:30 AM UTC)
+    - cron: '30 11 * * *'
   workflow_dispatch:
     inputs:
       dry-run:
@@ -72,7 +72,7 @@ jobs:
           
           # Only commit and push if there are changes
           if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Archive generated post and update published hashes [skip ci]"
+            git commit -m "Archive generated post and update published hashes"
             git push origin HEAD:main
           else
             echo "No new files or changes to commit."

@@ -31,7 +31,7 @@ class GeminiClient:
         topic: str, 
         word_count_min: int = 800, 
         word_count_max: int = 1200, 
-        max_retries: int = 3
+        max_retries: int = 4
     ) -> Dict[str, Any]:
         """
         Generates and parses a blog post on a given topic, with up to `max_retries` attempts.
@@ -79,13 +79,13 @@ class GeminiClient:
             logger.info(f"Generation attempt {attempt} of {max_retries}...")
             
             try:
-                # Call Gemini API via requests
+                # Call Gemini API via requests with a 60s timeout for long text generation
                 response = requests.post(
                     self.api_url, 
                     json=payload, 
                     params=params, 
                     headers=headers,
-                    timeout=30
+                    timeout=60
                 )
                 
                 # Check HTTP errors
@@ -140,24 +140,26 @@ class GeminiClient:
                     f"Response: {response.text}"
                 )
                 if attempt < max_retries:
-                    sleep_time = 2 ** attempt
+                    sleep_time = min(60, 5 * (2 ** (attempt - 1)))
                     logger.info(f"Retrying in {sleep_time} seconds...")
                     time.sleep(sleep_time)
             except requests.exceptions.RequestException as req_err:
                 logger.warning(f"Gemini API connection error on attempt {attempt}: {req_err}")
                 if attempt < max_retries:
-                    sleep_time = 2 ** attempt
+                    sleep_time = min(60, 5 * (2 ** (attempt - 1)))
                     logger.info(f"Retrying in {sleep_time} seconds...")
                     time.sleep(sleep_time)
             except ParseError as parse_err:
                 logger.warning(f"Parsing/Validation failed on attempt {attempt}: {parse_err}")
                 if attempt < max_retries:
-                    logger.info("Retrying generation...")
-                    time.sleep(1)
+                    logger.info("Retrying generation in 2 seconds...")
+                    time.sleep(2)
             except Exception as e:
                 logger.error(f"Unexpected error during generation on attempt {attempt}: {e}")
                 if attempt < max_retries:
-                    time.sleep(2)
+                    sleep_time = min(60, 5 * (2 ** (attempt - 1)))
+                    logger.info(f"Retrying in {sleep_time} seconds...")
+                    time.sleep(sleep_time)
                 else:
                     raise
 

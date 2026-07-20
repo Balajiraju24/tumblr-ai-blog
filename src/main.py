@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import hashlib
 import re
 from datetime import datetime
@@ -153,7 +154,10 @@ def main():
                 )
         except Exception as e:
             logger.error(f"Attempt {attempt} failed during unique content generation: {e}")
-            if attempt == 3:
+            if attempt < 3:
+                logger.info("Waiting 10 seconds before next generation attempt...")
+                time.sleep(10)
+            else:
                 logger.error("Failed to generate a valid post after 3 attempts. Exiting.")
                 sys.exit(1)
 

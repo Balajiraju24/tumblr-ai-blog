@@ -75,7 +75,7 @@ class GeminiClient:
         headers = {"Content-Type": "application/json"}
 
         # Define candidate models in priority order
-        fallback_chain = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b"]
+        fallback_chain = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"]
         models_to_try = [self.model_name] + [m for m in fallback_chain if m != self.model_name]
 
         last_error = None
@@ -97,14 +97,25 @@ class GeminiClient:
                         timeout=60
                     )
                     
-                    # Check for rate limit / quota (429) or service unavailable (503)
-                    if response.status_code in (429, 503, 404):
-                        logger.warning(
-                            f"Model [{current_model}] returned HTTP {response.status_code}: {response.text[:200]}"
-                        )
-                        # Switch to fallback model immediately if quota/503 error occurs
-                        last_error = RuntimeError(f"HTTP {response.status_code} for model {current_model}")
+                    # 404 means model is invalid/deprecated; break to try next model
+                    if response.status_code == 404:
+                        logger.warning(f"Model [{current_model}] returned HTTP 404 (not available). Trying fallback model...")
+                        last_error = RuntimeError(f"HTTP 404 for model {current_model}")
                         break
+                    
+                    # 429 (rate limit) or 503 (service unavailable): wait for rate window to clear then retry
+                    if response.status_code in (429, 503):
+                        logger.warning(
+                            f"Model [{current_model}] returned HTTP {response.status_code} on attempt {attempt}: {response.text[:200]}"
+                        )
+                        last_error = RuntimeError(f"HTTP {response.status_code} for model {current_model}")
+                        if attempt < max_retries:
+                            sleep_time = 15 if response.status_code == 429 else 10
+                            logger.info(f"Waiting {sleep_time}s for rate limit / service recovery on model [{current_model}]...")
+                            time.sleep(sleep_time)
+                            continue
+                        else:
+                            break
                     
                     response.raise_for_status()
                     response_data = response.json()
@@ -148,12 +159,12 @@ class GeminiClient:
                     logger.warning(f"HTTP error on model [{current_model}] attempt {attempt}: {http_err}")
                     last_error = http_err
                     if attempt < max_retries:
-                        time.sleep(3)
+                        time.sleep(5)
                 except requests.exceptions.RequestException as req_err:
                     logger.warning(f"Connection error on model [{current_model}] attempt {attempt}: {req_err}")
                     last_error = req_err
                     if attempt < max_retries:
-                        time.sleep(3)
+                        time.sleep(5)
                 except ParseError as parse_err:
                     logger.warning(f"Parsing failed on model [{current_model}] attempt {attempt}: {parse_err}")
                     last_error = parse_err
@@ -165,6 +176,6 @@ class GeminiClient:
                     if attempt < max_retries:
                         time.sleep(2)
 
-            logger.warning(f"Model [{current_model}] failed after retries. Trying fallback model if available...")
+            logger.warning(f"Model [{current_model}] failed after {max_retries} retries. Trying fallback model if available...")
 
         raise RuntimeError(f"Failed to generate a valid post across all models ({models_to_try}). Last error: {last_error}")

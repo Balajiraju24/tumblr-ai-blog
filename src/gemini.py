@@ -1,7 +1,9 @@
 import time
 import os
-import requests
 from typing import Dict, Any
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
 from src.logger import setup_logger
 from src.prompts import load_system_prompt, get_user_prompt
@@ -10,11 +12,11 @@ from src.parser import parse_post, ParseError
 logger = setup_logger("gemini_client")
 
 class GeminiClient:
-    """Client for generating content using the Google Gemini REST API directly."""
+    """Client for generating content using the official Google GenAI SDK."""
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
         """
-        Initializes the Gemini Client.
+        Initializes the Gemini Client using the official google-genai SDK.
         If api_key is None, it defaults to the GEMINI_API_KEY environment variable.
         """
         self.model_name = model_name
@@ -23,8 +25,7 @@ class GeminiClient:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is not set.")
 
-    def _get_api_url(self, model: str) -> str:
-        return f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        self.client = genai.Client(api_key=self.api_key)
 
     def generate_post(
         self, 
@@ -34,13 +35,12 @@ class GeminiClient:
         max_retries: int = 3
     ) -> Dict[str, Any]:
         """
-        Generates and parses a blog post on a given topic.
-        Includes automatic model fallback (e.g. gemini-2.0-flash -> gemini-2.0-flash-lite) if 
-        a model hits rate limits (429), high demand (503), or deprecation (404).
+        Generates and parses a blog post on a given topic using the official GenAI SDK.
+        Includes automatic model fallback (gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash).
         """
         logger.info(f"AI generation started for topic: '{topic}'")
         
-        # Load the system instructions
+        # Load system instructions
         try:
             system_prompt = load_system_prompt(
                 word_count_min=word_count_min, 
@@ -52,36 +52,13 @@ class GeminiClient:
 
         user_prompt = get_user_prompt(topic)
 
-        # Build payload according to the Gemini API JSON structure
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": user_prompt}
-                    ]
-                }
-            ],
-            "systemInstruction": {
-                "parts": [
-                    {"text": system_prompt}
-                ]
-            },
-            "generationConfig": {
-                "temperature": 0.7
-            }
-        }
-
-        params = {"key": self.api_key}
-        headers = {"Content-Type": "application/json"}
-
-        # Define candidate models in priority order
-        fallback_chain = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"]
+        # Define candidate models supported by google-genai SDK
+        fallback_chain = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
         models_to_try = [self.model_name] + [m for m in fallback_chain if m != self.model_name]
 
         last_error = None
         for current_model in models_to_try:
-            api_url = self._get_api_url(current_model)
-            logger.info(f"Attempting generation with model: '{current_model}'")
+            logger.info(f"Attempting generation with SDK model: '{current_model}'")
             
             attempt = 0
             while attempt < max_retries:
@@ -89,64 +66,23 @@ class GeminiClient:
                 logger.info(f"Model [{current_model}] attempt {attempt} of {max_retries}...")
                 
                 try:
-                    response = requests.post(
-                        api_url, 
-                        json=payload, 
-                        params=params, 
-                        headers=headers,
-                        timeout=60
+                    config = types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=0.7,
                     )
                     
-                    # 404 means model is invalid/deprecated; break to try next model
-                    if response.status_code == 404:
-                        logger.warning(f"Model [{current_model}] returned HTTP 404 (not available). Trying fallback model...")
-                        last_error = RuntimeError(f"HTTP 404 for model {current_model}")
-                        break
+                    response = self.client.models.generate_content(
+                        model=current_model,
+                        contents=user_prompt,
+                        config=config
+                    )
                     
-                    # 429 (rate limit) or 503 (service unavailable): wait for rate window to clear then retry
-                    if response.status_code in (429, 503):
-                        logger.warning(
-                            f"Model [{current_model}] returned HTTP {response.status_code} on attempt {attempt}: {response.text[:200]}"
-                        )
-                        last_error = RuntimeError(f"HTTP {response.status_code} for model {current_model}")
-                        if attempt < max_retries:
-                            sleep_time = 15 if response.status_code == 429 else 10
-                            logger.info(f"Waiting {sleep_time}s for rate limit / service recovery on model [{current_model}]...")
-                            time.sleep(sleep_time)
-                            continue
-                        else:
-                            break
-                    
-                    response.raise_for_status()
-                    response_data = response.json()
-                    
-                    candidates = response_data.get("candidates", [])
-                    if not candidates:
-                        prompt_feedback = response_data.get("promptFeedback", {})
-                        block_reason = prompt_feedback.get("blockReason")
-                        if block_reason:
-                            raise RuntimeError(f"Gemini API blocked the request. Reason: {block_reason}")
-                        raise ParseError("Gemini API response did not contain candidates.")
-                    
-                    candidate = candidates[0]
-                    finish_reason = candidate.get("finishReason")
-                    if finish_reason == "SAFETY":
-                        raise RuntimeError("Gemini API generated response was blocked by safety settings.")
-                    elif finish_reason == "RECITATION":
-                        raise RuntimeError("Gemini API generated response was blocked due to recitation check.")
-                    
-                    content = candidate.get("content", {})
-                    parts = content.get("parts", [])
-                    if not parts or "text" not in parts[0]:
-                        raise ParseError("Candidate did not contain valid text parts.")
-                    
-                    generated_text = parts[0]["text"]
-                    if not generated_text.strip():
+                    if not response.text or not response.text.strip():
                         raise ParseError("Gemini returned a response with no text content.")
 
-                    # Parse and validate the response
+                    # Parse and validate response
                     post_data = parse_post(
-                        generated_text, 
+                        response.text, 
                         word_count_min=word_count_min, 
                         word_count_max=word_count_max
                     )
@@ -155,16 +91,12 @@ class GeminiClient:
                     logger.info(f"AI generation completed successfully using model [{current_model}].")
                     return post_data
 
-                except requests.exceptions.HTTPError as http_err:
-                    logger.warning(f"HTTP error on model [{current_model}] attempt {attempt}: {http_err}")
-                    last_error = http_err
+                except APIError as api_err:
+                    logger.warning(f"Google GenAI API error on model [{current_model}] attempt {attempt}: {api_err}")
+                    last_error = api_err
                     if attempt < max_retries:
-                        time.sleep(5)
-                except requests.exceptions.RequestException as req_err:
-                    logger.warning(f"Connection error on model [{current_model}] attempt {attempt}: {req_err}")
-                    last_error = req_err
-                    if attempt < max_retries:
-                        time.sleep(5)
+                        logger.info("Waiting 12 seconds for rate limit / service recovery...")
+                        time.sleep(12)
                 except ParseError as parse_err:
                     logger.warning(f"Parsing failed on model [{current_model}] attempt {attempt}: {parse_err}")
                     last_error = parse_err
@@ -174,7 +106,7 @@ class GeminiClient:
                     logger.error(f"Unexpected error on model [{current_model}] attempt {attempt}: {e}")
                     last_error = e
                     if attempt < max_retries:
-                        time.sleep(2)
+                        time.sleep(5)
 
             logger.warning(f"Model [{current_model}] failed after {max_retries} retries. Trying fallback model if available...")
 

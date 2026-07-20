@@ -4,6 +4,8 @@ on:
   schedule:
     # Run once daily at 9:30 PM AEST (11:30 AM UTC)
     - cron: '30 11 * * *'
+  push:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       dry-run:

@@ -52,13 +52,13 @@ class GeminiClient:
 
         user_prompt = get_user_prompt(topic)
 
-        # Define candidate models supported by google-genai SDK
-        fallback_chain = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        # Define candidate models across Flash and Pro families to leverage separate quota pools
+        fallback_chain = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-2.0-pro-exp-02-05"]
         models_to_try = [self.model_name] + [m for m in fallback_chain if m != self.model_name]
 
         last_error = None
         for current_model in models_to_try:
-            logger.info(f"Attempting generation with SDK model: '{current_model}'")
+            logger.info(f"Attempting generation with model: '{current_model}'")
             
             attempt = 0
             while attempt < max_retries:
@@ -92,11 +92,19 @@ class GeminiClient:
                     return post_data
 
                 except APIError as api_err:
-                    logger.warning(f"Google GenAI API error on model [{current_model}] attempt {attempt}: {api_err}")
+                    err_msg = str(api_err)
+                    logger.warning(f"Google GenAI API error on model [{current_model}] attempt {attempt}: {err_msg[:250]}")
                     last_error = api_err
+                    
+                    # If 429 (Resource Exhausted / Quota Exceeded) or 404 (Not Found), switch to fallback model immediately
+                    if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "404" in err_msg or "NOT_FOUND" in err_msg:
+                        logger.warning(f"Model [{current_model}] quota/availability limit reached. Switching to next fallback model immediately...")
+                        break
+                    
+                    # For 503 transient errors, pause briefly and retry current model
                     if attempt < max_retries:
-                        logger.info("Waiting 12 seconds for rate limit / service recovery...")
-                        time.sleep(12)
+                        logger.info("Waiting 10 seconds for service recovery...")
+                        time.sleep(10)
                 except ParseError as parse_err:
                     logger.warning(f"Parsing failed on model [{current_model}] attempt {attempt}: {parse_err}")
                     last_error = parse_err
@@ -106,8 +114,8 @@ class GeminiClient:
                     logger.error(f"Unexpected error on model [{current_model}] attempt {attempt}: {e}")
                     last_error = e
                     if attempt < max_retries:
-                        time.sleep(5)
+                        time.sleep(3)
 
-            logger.warning(f"Model [{current_model}] failed after {max_retries} retries. Trying fallback model if available...")
+            logger.warning(f"Model [{current_model}] unavailable. Trying fallback model if available...")
 
         raise RuntimeError(f"Failed to generate a valid post across all models ({models_to_try}). Last error: {last_error}")

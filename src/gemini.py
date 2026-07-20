@@ -52,8 +52,13 @@ class GeminiClient:
 
         user_prompt = get_user_prompt(topic)
 
-        # Define candidate models across Flash and Pro families to leverage separate quota pools
-        fallback_chain = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-2.0-pro-exp-02-05"]
+        # Define candidate models supported by the Google GenAI API
+        fallback_chain = [
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite-preview-02-05",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro-latest"
+        ]
         models_to_try = [self.model_name] + [m for m in fallback_chain if m != self.model_name]
 
         last_error = None
@@ -96,9 +101,9 @@ class GeminiClient:
                     logger.warning(f"Google GenAI API error on model [{current_model}] attempt {attempt}: {err_msg[:250]}")
                     last_error = api_err
                     
-                    # If 429 (Resource Exhausted / Quota Exceeded) or 404 (Not Found), switch to fallback model immediately
+                    # If 429 (Quota Exceeded) or 404 (Not Found), switch to fallback model immediately
                     if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "404" in err_msg or "NOT_FOUND" in err_msg:
-                        logger.warning(f"Model [{current_model}] quota/availability limit reached. Switching to next fallback model immediately...")
+                        logger.warning(f"Model [{current_model}] quota or availability limit reached. Trying next fallback model...")
                         break
                     
                     # For 503 transient errors, pause briefly and retry current model
@@ -118,4 +123,7 @@ class GeminiClient:
 
             logger.warning(f"Model [{current_model}] unavailable. Trying fallback model if available...")
 
-        raise RuntimeError(f"Failed to generate a valid post across all models ({models_to_try}). Last error: {last_error}")
+        raise RuntimeError(
+            f"Daily free API quota exhausted across all available Gemini models for today. "
+            f"Quota will automatically reset at 00:00 UTC (10:00 AM AEST). Last error: {last_error}"
+        )

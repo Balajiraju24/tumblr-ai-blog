@@ -36,13 +36,20 @@ class GeminiClient:
         word_count_min: int,
         word_count_max: int
     ) -> Dict[str, Any]:
-        """Fallback method to generate blog posts using OpenAI ChatGPT models (gpt-4o-mini, gpt-4o)."""
+        """Fallback method to generate blog posts using OpenAI ChatGPT models (default: gpt-4o-mini)."""
         openai_key = os.environ.get("OPENAI_API_KEY")
         if not openai_key:
             raise RuntimeError("OPENAI_API_KEY environment variable is not set.")
 
-        openai_models = ["gpt-4o-mini", "gpt-4o"]
+        configured_model = os.environ.get("OPENAI_MODEL")
+        openai_models = [configured_model] if configured_model else ["gpt-4o-mini"]
         last_openai_err = None
+
+        openai_user_prompt = (
+            f"{user_prompt}\n\n"
+            f"CRITICAL: The essay BODY must be at least {word_count_min} words and no more than {word_count_max} words. "
+            f"Aim for ~950 words. Do not write a short summary."
+        )
 
         for openai_model in openai_models:
             logger.info(f"Attempting fallback generation with ChatGPT model: '{openai_model}'")
@@ -56,9 +63,10 @@ class GeminiClient:
                     "model": openai_model,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
+                        {"role": "user", "content": openai_user_prompt}
                     ],
-                    "temperature": 0.7
+                    "temperature": 0.7,
+                    "max_tokens": 2500
                 }
                 response = requests.post(url, json=payload, headers=headers, timeout=60)
                 response.raise_for_status()
@@ -89,8 +97,8 @@ class GeminiClient:
     def generate_post(
         self, 
         topic: str, 
-        word_count_min: int = 800, 
-        word_count_max: int = 1200, 
+        word_count_min: int = 500, 
+        word_count_max: int = 700, 
         max_retries: int = 3
     ) -> Dict[str, Any]:
         """
@@ -114,9 +122,7 @@ class GeminiClient:
         # Define candidate models supported by the Google GenAI API
         fallback_chain = [
             "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro"
+            "gemini-2.0-flash-lite"
         ]
         models_to_try = [self.model_name] + [m for m in fallback_chain if m != self.model_name]
 

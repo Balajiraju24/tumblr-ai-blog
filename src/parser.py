@@ -5,7 +5,7 @@ class ParseError(ValueError):
     """Raised when the AI response does not match the required format or fails validation."""
     pass
 
-def parse_post(text: str, word_count_min: int = 800, word_count_max: int = 1200) -> Dict[str, Any]:
+def parse_post(text: str, word_count_min: int = 500, word_count_max: int = 750) -> Dict[str, Any]:
     """
     Parses a generated Tumblr post text and validates its components.
     

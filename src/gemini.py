@@ -48,7 +48,7 @@ class GeminiClient:
         openai_user_prompt = (
             f"{user_prompt}\n\n"
             f"CRITICAL: The essay BODY must be at least {word_count_min} words and no more than {word_count_max} words. "
-            f"Aim for ~950 words. Do not write a short summary."
+            f"Aim for ~600 words. Do not write a short summary."
         )
 
         for openai_model in openai_models:
@@ -98,7 +98,7 @@ class GeminiClient:
         self, 
         topic: str, 
         word_count_min: int = 500, 
-        word_count_max: int = 700, 
+        word_count_max: int = 750, 
         max_retries: int = 3
     ) -> Dict[str, Any]:
         """

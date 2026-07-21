@@ -18,7 +18,7 @@ def get_random_topic(topics: List[str] = None) -> str:
         topics = DEFAULT_TOPICS
     return random.choice(topics)
 
-def load_system_prompt(filepath: str = "prompts/system_prompt.txt", word_count_min: int = 800, word_count_max: int = 1200) -> str:
+def load_system_prompt(filepath: str = "prompts/system_prompt.txt", word_count_min: int = 500, word_count_max: int = 750) -> str:
     """
     Loads and formats the system prompt template from a file.
     Default parameters are applied if the template includes placeholder formatting.

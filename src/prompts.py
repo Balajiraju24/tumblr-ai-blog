@@ -7,12 +7,9 @@ from typing import List, Tuple
 DEFAULT_TOPICS = [
     "scuba diving",
     "travel",
-    "software engineering",
-    "cloud computing",
     "productivity",
-    "personal growth",
     "observations about life",
-    "Observability and SRE (focusing on New Relic and Splunk)"
+    "hiking"
 ]
 
 def get_random_topic(topics: List[str] = None) -> str:
